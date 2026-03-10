@@ -16,3 +16,4 @@ build/
 install/
 .vscode
 .debug*
+**__pycache__**
