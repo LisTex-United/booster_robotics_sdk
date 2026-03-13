@@ -287,6 +287,7 @@ PYBIND11_MODULE(booster_robotics_sdk_python, m) {
         .value("kChangeMode", robot::b1::LocoApiId::kChangeMode)
         .value("kMove", robot::b1::LocoApiId::kMove)
         .value("kRotateHead", robot::b1::LocoApiId::kRotateHead)
+        .value("kUpperBodyCustomControl", robot::b1::LocoApiId::kUpperBodyCustomControl)
         .export_values();
 
     py::enum_<robot::b1::HandAction>(m, "B1HandAction")
@@ -598,7 +599,17 @@ PYBIND11_MODULE(booster_robotics_sdk_python, m) {
                  *
                  * @return 0 if success, otherwise return error code
                  */
-                )pbdoc");
+            )pbdoc")
+        .def("UpperBodyCustomControl", &robot::b1::B1LocoClient::UpperBodyCustomControl, py::arg("start"),
+             R"pbdoc(
+            /**
+             * @brief Start or stop upper body custom control action.
+             *
+             * @param start true to start the action, false to stop it
+             *
+             * @return 0 if success, otherwise return error code
+             */
+            )pbdoc");
 
     py::class_<ImuState>(m, "ImuState")
         .def(py::init<>())
