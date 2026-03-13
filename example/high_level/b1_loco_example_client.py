@@ -1,4 +1,4 @@
-from booster_robotics_sdk_python import B1LocoClient, ChannelFactory, RobotMode, B1HandIndex, GripperControlMode, Position, Orientation, Posture, GripperMotionParameter, GetModeResponse, Quaternion, Frame, Transform, DexterousFingerParameter
+from booster_robotics_sdk_python import B1LocoClient, ChannelFactory, RobotMode, B1HandIndex, B1HandType, GripperControlMode, Position, Orientation, Posture, GripperMotionParameter, GetModeResponse, Quaternion, Frame, Transform, DexterousFingerParameter
 import sys, time, random
 
 def hand_rock(client: B1LocoClient):
@@ -40,7 +40,7 @@ def hand_rock(client: B1LocoClient):
     finger4_param.speed = 800
     finger_params.append(finger4_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Rock hand failed: error = {res}")
 
@@ -53,7 +53,7 @@ def hand_rock(client: B1LocoClient):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Rock hand thumb failed: error = {res}")
 
@@ -103,7 +103,7 @@ def hand_scissor(client: B1LocoClient):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Scissor hand failed: error = {res}")
 
@@ -153,7 +153,7 @@ def hand_paper(client: B1LocoClient):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Paper hand failed: error = {res}")
 
@@ -203,7 +203,7 @@ def hand_grasp(client: B1LocoClient):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Grasp hand failed: error = {res}")
 
@@ -253,7 +253,7 @@ def hand_ok(client: B1LocoClient):
     finger5_param.speed = 1000
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kRightHand)
+    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Ok hand failed: error = {res}")
 
