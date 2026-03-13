@@ -1,7 +1,7 @@
 from booster_robotics_sdk_python import B1LocoClient, ChannelFactory, RobotMode, B1HandIndex, B1HandType, GripperControlMode, Position, Orientation, Posture, GripperMotionParameter, GetModeResponse, Quaternion, Frame, Transform, DexterousFingerParameter
 import sys, time, random
 
-def hand_rock(client: B1LocoClient):
+def hand_rock(client: B1LocoClient, hand):
     # 定义一个 名为 finger_params 的数组，用于存储每个手指的参数
     finger_params = []
     # 设置每个手指的参数
@@ -40,7 +40,7 @@ def hand_rock(client: B1LocoClient):
     finger4_param.speed = 800
     finger_params.append(finger4_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
+    res = client.ControlDexterousHand(finger_params, hand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Rock hand failed: error = {res}")
 
@@ -107,7 +107,7 @@ def hand_scissor(client: B1LocoClient):
     if res != 0:
         print(f"Scissor hand failed: error = {res}")
 
-def hand_paper(client: B1LocoClient):
+def hand_paper(client: B1LocoClient, hand):
     # 定义一个 名为 finger_params 的数组，用于存储每个手指的参数
     finger_params = []
     # 设置每个手指的参数
@@ -153,7 +153,7 @@ def hand_paper(client: B1LocoClient):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
+    res = client.ControlDexterousHand(finger_params, hand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Paper hand failed: error = {res}")
 
@@ -388,12 +388,16 @@ def main():
                 hand_grasp(client)
             elif input_cmd == "ok":
                 hand_ok(client)
-            elif input_cmd == "paper":
-                hand_paper(client)
+            elif input_cmd == "paperl":
+                hand_paper(client, B1HandIndex.kLeftHand)
+            elif input_cmd == "paperr":
+                hand_paper(client, B1HandIndex.kRightHand)
             elif input_cmd == "scissor":
                 hand_scissor(client)
-            elif input_cmd == "rock":
-                hand_rock(client)
+            elif input_cmd == "rockl":
+                hand_rock(client, B1HandIndex.kLeftHand)
+            elif input_cmd == "rockr":
+                hand_rock(client, B1HandIndex.kRightHand)
 
             if need_print:
                 print(f"Param: {x} {y} {z}")
