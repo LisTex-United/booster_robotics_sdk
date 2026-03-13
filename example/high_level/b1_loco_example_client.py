@@ -53,7 +53,7 @@ def hand_rock(client: B1LocoClient, hand):
     finger5_param.speed = 800
     finger_params.append(finger5_param)
 
-    res = client.ControlDexterousHand(finger_params, B1HandIndex.kLeftHand, B1HandType.kInspireHand)
+    res = client.ControlDexterousHand(finger_params, hand, B1HandType.kInspireHand)
     if res != 0:
         print(f"Rock hand thumb failed: error = {res}")
 
