@@ -11,7 +11,7 @@ def handler(low_state_msg):
           f"{imu_state.gyro[0]}, {imu_state.gyro[1]}, {imu_state.gyro[2]}, "
           f"{imu_state.acc[0]}, {imu_state.acc[1]}, {imu_state.acc[2]}")
     for i, motor in enumerate(low_state_msg.motor_state_serial):
-        print(f"  serial motor {i}: {motor.dq}, {motor.ddq}, {motor.tau_est}")
+        print(f"  serial motor {i}: {motor.q}, {motor.dq}, {motor.ddq}, {motor.tau_est}")
     for i, motor in enumerate(low_state_msg.motor_state_parallel):
         print(
             f"  parallel motor {i}: {motor.dq}, {motor.ddq}, {motor.tau_est}")
