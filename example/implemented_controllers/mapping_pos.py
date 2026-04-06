@@ -1,5 +1,5 @@
 ### To use while mapping the map on the stand, which fixes the head in a good position
-###! Don't use it while walking as it will enter custom mode and fall to the ground
+###! WARN: Don't use it while walking as it will enter custom mode and fall to the ground
 
 import time
 from booster_robotics_sdk_python import (
@@ -81,14 +81,16 @@ class Controller:
         
     
     def start_custom_mode(self):
+        # Left manipulator is kept at the prep position
         arms = [JOINT_PARAMETERS[name] for name in ARM_NAMES]
+        #To reduce the arms downward movement
         for i, joint in enumerate(arms):
             motor_idx = joint["idx"]
             self.low_cmd.motor_cmd[motor_idx].q = 0.0
             self.low_cmd.motor_cmd[motor_idx].dq = 0.0
             self.low_cmd.motor_cmd[motor_idx].tau = 0.0
             self.low_cmd.motor_cmd[motor_idx].kp = 0.0
-            self.low_cmd.motor_cmd[motor_idx].kd = 3.5
+            self.low_cmd.motor_cmd[motor_idx].kd = 2.0
             self.low_cmd.motor_cmd[motor_idx].weight = 1.0
 
         fix_joint_names = ["Head_Yaw", "Head_Pitch", "Waist"]  

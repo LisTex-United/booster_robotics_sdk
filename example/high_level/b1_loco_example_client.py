@@ -34,7 +34,7 @@ def hand_rock(client: B1LocoClient, hand):
     finger_params.append(finger3_param)
 
     finger4_param = DexterousFingerParameter()
-    finger4_param.seq = 3
+    finger4_param.seq = 4
     finger4_param.angle = 0
     finger4_param.force = 200
     finger4_param.speed = 800
@@ -90,7 +90,7 @@ def hand_scissor(client: B1LocoClient):
     finger_params.append(finger3_param)
 
     finger4_param = DexterousFingerParameter()
-    finger4_param.seq = 3
+    finger4_param.seq = 4
     finger4_param.angle = 0
     finger4_param.force = 200
     finger4_param.speed = 800
@@ -140,7 +140,7 @@ def hand_paper(client: B1LocoClient, hand):
     finger_params.append(finger3_param)
 
     finger4_param = DexterousFingerParameter()
-    finger4_param.seq = 3
+    finger4_param.seq = 4
     finger4_param.angle = 1000
     finger4_param.force = 200
     finger4_param.speed = 800
@@ -190,7 +190,7 @@ def hand_grasp(client: B1LocoClient):
     finger_params.append(finger3_param)
 
     finger4_param = DexterousFingerParameter()
-    finger4_param.seq = 3
+    finger4_param.seq = 4
     finger4_param.angle = 350
     finger4_param.force = 400
     finger4_param.speed = 800
@@ -240,7 +240,7 @@ def hand_ok(client: B1LocoClient):
     finger_params.append(finger3_param)
 
     finger4_param = DexterousFingerParameter()
-    finger4_param.seq = 3
+    finger4_param.seq = 4
     finger4_param.angle = 400
     finger4_param.force = 200
     finger4_param.speed = 800
