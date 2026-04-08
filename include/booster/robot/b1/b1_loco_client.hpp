@@ -4,7 +4,6 @@
 #include <memory>
 
 #include <booster/robot/rpc/rpc_client.hpp>
-
 #include "b1_loco_api.hpp"
 
 using namespace booster::robot;
@@ -60,7 +59,7 @@ public:
      * @brief Get current robot mode
      *
      * @param[out] get_mode_response Reference to store the response data, including:
-     *              - current_mode (RobotMode enum value)
+     * - current_mode (RobotMode enum value)
      *
      * @return 0 if success, otherwise return error code
      * @see ChangeMode() for mode switching API
@@ -76,6 +75,54 @@ public:
         }
         nlohmann::json body_json = nlohmann::json::parse(resp.GetBody());
         get_mode_response.FromJson(body_json);
+        return ret;
+    }
+
+    /**
+     * @brief Get current robot status
+     *
+     * @param[out] get_status_response Reference to store the response data, including:
+     * - current_mode (RobotMode enum value)
+     * - current_body_control (BodyControl enum value)
+     * - current_actions (vector of Action enum values)
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t GetStatus(GetStatusResponse &get_status_response) {
+        std::string param{};
+        Response resp;
+        int32_t ret = SendApiRequestWithResponse(LocoApiId::kGetStatus,
+                                                 param, resp);
+        if (ret != 0) {
+            return ret;
+        }
+        nlohmann::json body_json = nlohmann::json::parse(resp.GetBody());
+        get_status_response.FromJson(body_json);
+        return ret;
+    }
+
+    /**
+     * @brief Get robot info
+     *
+     * @param[out] get_robot_info_response Reference to store the response data, including:
+     * - name (std::string)
+     * - nickname (std::string)
+     * - version (std::string)
+     * - model (std::string)
+     * - serial_number (std::string)
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t GetRobotInfo(GetRobotInfoResponse &get_robot_info_response) {
+        std::string param{};
+        Response resp;
+        int32_t ret = SendApiRequestWithResponse(LocoApiId::kGetRobotInfo,
+                                                 param, resp);
+        if (ret != 0) {
+            return ret;
+        }
+        nlohmann::json body_json = nlohmann::json::parse(resp.GetBody());
+        get_robot_info_response.FromJson(body_json);
         return ret;
     }
 
@@ -136,7 +183,7 @@ public:
 
     /**
      * @brief The robot lies down on its back
-     *
+     * @warning This API is unstable and may change in future releases.
      * @return 0 if success, otherwise return error code
      */
     int32_t LieDown() {
@@ -144,7 +191,7 @@ public:
     }
 
     /**
-     * @brief The robot gets up from a position lying on its back
+     * @brief The robot gets up
      *
      * @return 0 if success, otherwise return error code
      */
@@ -153,15 +200,35 @@ public:
     }
 
     /**
-     *  @brief Move hand end-effector to a target posture(position & orientation) with an auxiliary point
+     * @brief The robot gets up to specified mode, either kWalking or kSoccer
      *
-     *  @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
-     *  It contains position & orientation.
-     *  @param aux_posture Represents the auxiliary point on the end-effector's motion arc trajectory
-     *  @param time_mills Specifies the duration, in milliseconds, for completing the movement.
-     *  @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t GetUpWithMode(booster::robot::RobotMode mode) {
+        GetUpWithModeParameter param(mode);
+        std::string json = param.ToJson().dump();
+        return SendApiRequest(LocoApiId::kGetUpWithMode, json);
+    }
+
+    /**
+     * @brief The robot executes a powerful kicking motion.
      *
-     *  @return 0 if success, otherwise return error code
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t Shoot() {
+        return SendApiRequest(LocoApiId::kShoot, "");
+    }
+
+    /**
+     * @brief Move hand end-effector to a target posture(position & orientation) with an auxiliary point
+     *
+     * @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
+     * It contains position & orientation.
+     * @param aux_posture Represents the auxiliary point on the end-effector's motion arc trajectory
+     * @param time_mills Specifies the duration, in milliseconds, for completing the movement.
+     * @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
+     *
+     * @return 0 if success, otherwise return error code
      */
     int32_t MoveHandEndEffectorWithAux(const Posture &target_posture, const Posture &aux_posture, int time_millis, HandIndex hand_index) {
         MoveHandEndEffectorParameter move_hand(target_posture, aux_posture, time_millis, hand_index);
@@ -170,19 +237,19 @@ public:
     }
 
     /**
-     *  @brief Move hand end-effector with a target posture(position & orientation)
-     *  @deprecated **This API is deprecated and will be removed in future versions.**
-     *              Please use the new API `MoveHandEndEffectorV2` instead.
-     *  @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
-     *                        It contains position & orientation,
-     *  @param time_mills Specifies the duration, in milliseconds, for completing the movement.
-     *  @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
+     * @brief Move hand end-effector with a target posture(position & orientation)
+     * @deprecated **This API is deprecated and will be removed in future versions.**
+     * Please use the new API `MoveHandEndEffectorV2` instead.
+     * @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
+     * It contains position & orientation,
+     * @param time_mills Specifies the duration, in milliseconds, for completing the movement.
+     * @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
      *
-     *  @return 0 if success, otherwise return error code
+     * @return 0 if success, otherwise return error code
      *
-     *  @details
-     *  **Reason for deprecation**: This API is deprecated due to an implicit rotational offset (rot) being applied to the target orientation.
-     *  The final orientation is calculated as orientation = rot * offset, which contradicts the parameter description of `target_posture`.
+     * @details
+     * **Reason for deprecation**: This API is deprecated due to an implicit rotational offset (rot) being applied to the target orientation.
+     * The final orientation is calculated as orientation = rot * offset, which contradicts the parameter description of `target_posture`.
      */
     int32_t MoveHandEndEffector(const Posture &target_posture, int time_millis, HandIndex hand_index) {
         MoveHandEndEffectorParameter move_hand(target_posture, time_millis, hand_index, false);
@@ -191,19 +258,51 @@ public:
     }
 
     /**
-     *  @brief Move hand end-effector with a target posture(position & orientation)
+     * @brief Move hand end-effector with a target posture(position & orientation)
      *
-     *  @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
-     *                        It contains position & orientation.
-     *  @param time_mills Specifies the duration, in milliseconds, for completing the movement.
-     *  @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
+     * @param target_posture Represents the target posture in base frame (torso frame) that the hand end-effector should reach.
+     * It contains position & orientation.
+     * @param time_mills Specifies the duration, in milliseconds, for completing the movement.
+     * @param hand_index Identifies which hand the parameter refers to (for instance, left hand or right hand).
      *
-     *  @return 0 if success, otherwise return error code
+     * @return 0 if success, otherwise return error code
      */
     int32_t MoveHandEndEffectorV2(const Posture &target_posture, int time_millis, HandIndex hand_index) {
         MoveHandEndEffectorParameter move_hand(target_posture, time_millis, hand_index, true);
         std::string param = move_hand.ToJson().dump();
         return SendApiRequest(LocoApiId::kMoveHandEndEffector, param);
+    }
+
+    /**
+     * @brief Move dual hand end-effector to target postures(position & orientation)
+     *
+     * @param left_target_posture Represents the target posture in base frame (torso frame) that the left hand end-effector should reach.
+     * It contains position & orientation.
+     * @param right_target_posture Represents the target posture in base frame (torso frame) that the right hand end-effector should reach.
+     * It contains position & orientation.
+     * @param time_mills Specifies the duration, in milliseconds, for completing the movement.
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t MoveDualHandEndEffector(
+        const Posture &left_target_posture,
+        const Posture &right_target_posture,
+        int time_millis) {
+        MoveDualHandEndEffectorParameter move_dual_hand(
+            left_target_posture,
+            right_target_posture,
+            time_millis);
+        std::string param = move_dual_hand.ToJson().dump();
+        return SendApiRequest(LocoApiId::kMoveDualHandEndEffector, param);
+    }
+
+    /**
+     * @brief Stop hand end-effector movement
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t StopHandEndEffector() {
+        return SendApiRequest(LocoApiId::kStopHandEndEffector, "");
     }
 
     /**
@@ -276,8 +375,8 @@ public:
      *
      * @return 0 if success, otherwise return error code
      */
-    int32_t ControlDexterousHand(const std::vector<DexterousFingerParameter> &finger_params, HandIndex hand_index) {
-        ControlDexterousHandParameter control_dexterous_hand(finger_params, hand_index);
+    int32_t ControlDexterousHand(const std::vector<DexterousFingerParameter> &finger_params, HandIndex hand_index, BoosterHandType hand_type = BoosterHandType::kInspireHand) {
+        ControlDexterousHandParameter control_dexterous_hand(finger_params, hand_index, hand_type);
         std::string param = control_dexterous_hand.ToJson().dump();
         return SendApiRequest(LocoApiId::kControlDexterousHand, param);
     }
@@ -294,6 +393,179 @@ public:
         DanceParameter dance(dance_id);
         std::string param = dance.ToJson().dump();
         return SendApiRequest(LocoApiId::kDance, param);
+    }
+
+    /**
+     * @brief Play sound in specific path
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t PlaySound(const std::string &sound_file_path) {
+        PlaySoundParameter play_sound(sound_file_path);
+        std::string param = play_sound.ToJson().dump();
+        return SendApiRequest(LocoApiId::kPlaySound, param);
+    }
+
+    /**
+     * @brief Stop sound
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t StopSound() {
+        return SendApiRequest(LocoApiId::kStopSound, "");
+    }
+
+    /**
+     * @brief Enable or disable zero torque drag, depending on active state
+     *
+     * @param active true to enable, false to disable
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t ZeroTorqueDrag(bool active) {
+        ZeroTorqueDragParameter zero_torque_drag(active);
+        std::string param = zero_torque_drag.ToJson().dump();
+        return SendApiRequest(LocoApiId::kZeroTorqueDrag, param);
+    }
+
+    /**
+     * @brief Start or stop recording trajectory, depending on active state
+     *
+     * @param active true to start recording, false to stop
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t RecordTrajectory(bool active) {
+        RecordTrajectoryParameter record_trajectory(active);
+        std::string param = record_trajectory.ToJson().dump();
+        return SendApiRequest(LocoApiId::kRecordTrajectory, param);
+    }
+
+    /**
+     * @brief Replay trajectory
+     *
+     * @param active true to start replaying, false to stop
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t ReplayTrajectory(std::string path) {
+        ReplayTrajectoryParameter replay_trajectory(path);
+        std::string param = replay_trajectory.ToJson().dump();
+        return SendApiRequest(LocoApiId::kReplayTrajectory, param);
+    }
+
+    /**
+     * @brief Make the robot perform a whole body dance.
+     *
+     * @param dance_id The identifier of the whole body dance to be performed
+     *
+     * @return int32_t Returns 0 if successful, otherwise returns an error code
+     */
+    int32_t WholeBodyDance(WholeBodyDanceId dance_id) {
+        WholeBodyDanceParameter dance_param(dance_id);
+        std::string param = dance_param.ToJson().dump();
+        return SendApiRequest(LocoApiId::kWholeBodyDance, param);
+    }
+
+    /**
+     * @brief Make the UpperBodyCustomControl action start or stop.
+     *
+     * @param start true to start the action, false to stop it
+     *
+     * @return int32_t Returns 0 if successful, otherwise returns an error code
+     */
+    int32_t UpperBodyCustomControl(bool start) {
+        UpperBodyCustomControlParameter upper_body_param(start);
+        std::string param = upper_body_param.ToJson().dump();
+        return SendApiRequest(LocoApiId::kUpperBodyCustomControl, param);
+    }
+
+    /**
+     * @brief Reset the robot's odometry
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t ResetOdometry() {
+        return SendApiRequest(LocoApiId::kResetOdometry, "");
+    }
+
+    /**
+     * @brief Load a custom lab model with configuration parameters.
+     * Only model_name, model_file_path, and traj_file_path are required.
+     *
+     * @param traj The custom trained trajectory configuration
+     * @param[out] tid The trajectory ID returned by the robot
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t LoadCustomTrainedTraj(const CustomTrainedTraj &traj, std::string &tid) {
+        std::string param = traj.ToJson().dump();
+        Response resp;
+        int32_t ret = SendApiRequestWithResponse(LocoApiId::kLoadCustomTrainedTraj, param, resp);
+        if (ret != 0) {
+            return ret;
+        }
+
+        nlohmann::json body_json = nlohmann::json::parse(resp.GetBody());
+        LoadCustomTrainedTrajResponse load_resp;
+        load_resp.FromJson(body_json);
+        tid = load_resp.tid_;
+
+        return 0;
+    }
+
+    /**
+     * @brief Activate a loaded custom trained trajectory
+     *
+     * @param tid The trajectory ID to activate
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t ActivateCustomTrainedTraj(const std::string &tid) {
+        CustomTrainedTrajParameter param_obj(tid);
+        std::string param = param_obj.ToJson().dump();
+        return SendApiRequest(LocoApiId::kActivateCustomTrainedTraj, param);
+    }
+
+    /**
+     * @brief Unload a custom trained trajectory
+     *
+     * @param tid The trajectory ID to unload
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t UnloadCustomTrainedTraj(const std::string &tid) {
+        CustomTrainedTrajParameter param_obj(tid);
+        std::string param = param_obj.ToJson().dump();
+        return SendApiRequest(LocoApiId::kUnloadCustomTrainedTraj, param);
+    }
+
+    /**
+     * @brief Enter wbc gait
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t EnterWBCGait() {
+        return SendApiRequest(LocoApiId::kEnterWBCGait, "");
+    }
+
+    /**
+     * @brief Exit WBC Gait
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t ExitWBCGait() {
+        return SendApiRequest(LocoApiId::kExitWBCGait, "");
+    }
+
+    /**
+     * @brief side-foot kick
+     *
+     * @return 0 if success, otherwise return error code
+     */
+    int32_t VisualKick(bool start) {
+        VisualKickParameter parameter(start);
+        std::string param = parameter.ToJson().dump();
+        return SendApiRequest(LocoApiId::kVisualKick, param);
     }
 
 private:
