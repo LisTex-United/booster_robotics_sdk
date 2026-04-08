@@ -21,9 +21,9 @@ from booster_robotics_sdk_python import (
 
 class BoosterExecutorNode(Node):
     """
-    ROS2 node that receives 10-DOF trajectories and executes them on the robot.
+    ROS2 node that receives 7-DOF right-arm trajectories and executes them.
     Expects each trajectory point as:
-        [waist, 7dof right arm, head_yaw, head_pitch]
+        [7dof right arm]
     """
 
     # Head joint indices
@@ -59,11 +59,13 @@ class BoosterExecutorNode(Node):
     WAIST_JOINT_INDEX = 16
 
     TOTAL_MOTORS = 29  # kJointCnt7DofArm
+    SUPPORTED_TRAJ_DOFS = (7, 10)
 
     def __init__(self, args):
         super().__init__("booster_executor_node")
 
         self.args = args
+        self.trajectory_dof = args.trajectory_dof
         self.current_trajectory = None
         self.is_executing = False
         self.current_head_yaw = 0.0
@@ -75,7 +77,7 @@ class BoosterExecutorNode(Node):
         self.state_received = False
         self.current_joint_states = [0.0] * self.TOTAL_MOTORS
 
-        # Create subscriber for unified 10-DOF trajectory commands
+        # Create subscriber for trajectory commands (7-DOF or 10-DOF, selected by CLI)
         self.trajectory_sub = self.create_subscription(
             JointTrajectory,
             "/planning/trajectory",
@@ -85,6 +87,9 @@ class BoosterExecutorNode(Node):
 
         # self.get_logger().set_level(rclpy.logging.LoggingSeverity.DEBUG)
         self.get_logger().info("Initializing Booster SDK...")
+        self.get_logger().info(
+            f"Trajectory mode selected via CLI: {self.trajectory_dof}-DOF"
+        )
         self._init_sdk()
         self.get_logger().info("Booster SDK ready!")
 
@@ -380,16 +385,26 @@ class BoosterExecutorNode(Node):
 
     def trajectory_callback(self, msg):
         """
-        Callback when new 10-DOF trajectory is received.
-        Each point must be [waist, 7dof right arm, head_yaw, head_pitch].
+        Callback when new trajectory is received.
+        In 7-DOF mode, each point must be [7dof right arm].
+        In 10-DOF mode, each point must be [waist, 7dof right arm, head_yaw, head_pitch].
         """
-        self.get_logger().info(f"Received 10-DOF trajectory with {len(msg.points)} waypoints")
+        self.get_logger().info(
+            f"Received trajectory with {len(msg.points)} waypoints (mode={self.trajectory_dof}-DOF)"
+        )
         if len(msg.points) > 0:
             last_point = msg.points[-1]
             self.get_logger().info(
                 f"Last trajectory point: positions={last_point.positions}, "
                 f"velocities={getattr(last_point, 'velocities', None)}"
             )
+
+            if len(last_point.positions) != self.trajectory_dof:
+                self.get_logger().error(
+                    f"Trajectory point dimension mismatch: got {len(last_point.positions)}, "
+                    f"expected {self.trajectory_dof} for selected mode"
+                )
+                return
         if self.is_executing or self.current_trajectory is not None:
             self.get_logger().warning(
                 "Already have a trajectory queued, ignoring new command"
@@ -398,13 +413,14 @@ class BoosterExecutorNode(Node):
         # Store trajectory - will be executed in continuous loop
         self.current_trajectory = msg
 
-    # Removed: head_command_callback. Head is now controlled via trajectory.
+    # Removed: head_command_callback. Head stays at hold target in this node.
 
 
     def _execute_trajectory_inline(self):
         """
-        Execute the current 10-DOF trajectory inline in the continuous loop.
-        Each point must be [waist, 7dof right arm, head_yaw, head_pitch].
+        Execute the current trajectory inline in the continuous loop.
+        In 7-DOF mode, each point is [7dof right arm].
+        In 10-DOF mode, each point is [waist, 7dof right arm, head_yaw, head_pitch].
         """
         if self.current_trajectory is None:
             return
@@ -416,7 +432,8 @@ class BoosterExecutorNode(Node):
         dt = 1.0 / self.args.control_freq
 
         self.get_logger().info(
-            f"Executing 10-DOF trajectory: {num_waypoints} waypoints at {self.args.control_freq} Hz"
+            f"Executing {self.trajectory_dof}-DOF trajectory: "
+            f"{num_waypoints} waypoints at {self.args.control_freq} Hz"
         )
 
         try:
@@ -424,9 +441,18 @@ class BoosterExecutorNode(Node):
             if num_waypoints > 0:
                 first_point = trajectory.points[0]
                 cmd_position = np.array(first_point.positions)
-                if len(cmd_position) == 10:
-                    # Compare only arm, waist, and head (not left arm)
-                    current = [self.current_waist_pos] + list(self.current_pos) + [self.current_head_yaw, self.current_head_pitch]
+                if len(cmd_position) == self.trajectory_dof:
+                    if self.trajectory_dof == 7:
+                        # Compare only right arm state.
+                        current = list(self.current_pos)
+                    else:
+                        # Compare waist + right arm + head state.
+                        current = [
+                            self.current_waist_pos,
+                            *list(self.current_pos),
+                            self.current_head_yaw,
+                            self.current_head_pitch,
+                        ]
                     dist = np.linalg.norm(cmd_position - np.array(current))
                     if dist > 1.0:  # Threshold in radians, adjust as needed
                         self.get_logger().error(f"First trajectory point is too far from current position (distance={dist:.3f}). Aborting trajectory execution.")
@@ -444,43 +470,62 @@ class BoosterExecutorNode(Node):
                 if len(point.velocities) == len(cmd_position):
                     cmd_velocity = np.array(point.velocities)
 
-                if len(cmd_position) != 10:
+                if len(cmd_position) != self.trajectory_dof:
                     if idx == 0:
                         self.get_logger().error(
                             f"Unexpected trajectory dimension: {len(cmd_position)}. "
-                            "Expected 10 (waist, 7dof right arm, head_yaw, head_pitch)."
+                            f"Expected {self.trajectory_dof}."
                         )
                     continue
 
-                # Parse 10-DOF input
-                target_waist_q = cmd_position[0]
-                target_waist_dq = cmd_velocity[0]
-                target_arm_q = cmd_position[1:8]
-                target_arm_dq = cmd_velocity[1:8]
-                target_head_yaw = cmd_position[8]
-                target_head_pitch = cmd_position[9]
+                if self.trajectory_dof == 7:
+                    # Parse 7-DOF right-arm input
+                    target_waist_q = self.current_waist_pos
+                    target_waist_dq = 0.0
+                    target_arm_q = cmd_position
+                    target_arm_dq = cmd_velocity
+                    target_head_yaw = self.current_head_yaw
+                    target_head_pitch = self.current_head_pitch
+                else:
+                    # Parse 10-DOF input
+                    target_waist_q = cmd_position[0]
+                    target_waist_dq = cmd_velocity[0]
+                    target_arm_q = cmd_position[1:8]
+                    target_arm_dq = cmd_velocity[1:8]
+                    target_head_yaw = cmd_position[8]
+                    target_head_pitch = cmd_position[9]
 
                 # Update current positions for holding after trajectory
                 self.current_pos = target_arm_q.copy()
-                self.current_waist_pos = target_waist_q
-                self.current_head_yaw = target_head_yaw
-                self.current_head_pitch = target_head_pitch
-                last_head_yaw = target_head_yaw
-                last_head_pitch = target_head_pitch
-                self.get_logger().debug(
-                    f"[TRAJ] Commanding head: yaw={target_head_yaw:.3f}, pitch={target_head_pitch:.3f} (waypoint {idx+1}/{num_waypoints})"
-                )
+                if self.trajectory_dof == 10:
+                    self.current_waist_pos = target_waist_q
+                    self.current_head_yaw = target_head_yaw
+                    self.current_head_pitch = target_head_pitch
+                    last_head_yaw = target_head_yaw
+                    last_head_pitch = target_head_pitch
+                    self.get_logger().debug(
+                        f"[TRAJ] Commanding head: yaw={target_head_yaw:.3f}, pitch={target_head_pitch:.3f} (waypoint {idx+1}/{num_waypoints})"
+                    )
+                else:
+                    self.get_logger().debug(
+                        f"[TRAJ] Commanding right arm waypoint {idx+1}/{num_waypoints}: {np.round(target_arm_q, 3).tolist()}"
+                    )
 
                 # Debug: print commanded positions on first iteration
                 if idx == 0:
-                    self.get_logger().info(
-                        f"First waypoint: Waist={target_waist_q:.3f} (Current: {self.current_waist_pos:.3f}), "
-                        f"Arm={np.round(target_arm_q, 3).tolist()}, "
-                        f"HeadYaw={target_head_yaw:.3f}, HeadPitch={target_head_pitch:.3f}"
-                    )
-                    self.get_logger().info(
-                        f"Waist Diff: {target_waist_q - self.current_waist_pos:.4f}"
-                    )
+                    if self.trajectory_dof == 10:
+                        self.get_logger().info(
+                            f"First waypoint: Waist={target_waist_q:.3f} (Current: {self.current_waist_pos:.3f}), "
+                            f"Arm={np.round(target_arm_q, 3).tolist()}, "
+                            f"HeadYaw={target_head_yaw:.3f}, HeadPitch={target_head_pitch:.3f}"
+                        )
+                        self.get_logger().info(
+                            f"Waist Diff: {target_waist_q - self.current_waist_pos:.4f}"
+                        )
+                    else:
+                        self.get_logger().info(
+                            f"First waypoint right arm={np.round(target_arm_q, 3).tolist()}"
+                        )
 
                 # Set motor commands for LEFT arm (HOLD retract pose)
                 for j, motor_idx in enumerate(self.LEFT_ARM_JOINT_INDICES):
@@ -507,7 +552,7 @@ class BoosterExecutorNode(Node):
                 self.motor_cmd_list[self.WAIST_JOINT_INDEX].kd = self.args.kd
                 self.motor_cmd_list[self.WAIST_JOINT_INDEX].tau = self.tau_ff
 
-                # Set motor commands for HEAD (from trajectory)
+                # Set motor commands for HEAD
                 self.motor_cmd_list[self.HEAD_YAW_INDEX].q = target_head_yaw
                 self.motor_cmd_list[self.HEAD_YAW_INDEX].dq = 0.0
                 self.motor_cmd_list[self.HEAD_YAW_INDEX].kp = self._kp(self.HEAD_YAW_INDEX)
@@ -543,11 +588,19 @@ class BoosterExecutorNode(Node):
                         f"Control loop running slow: {elapsed:.4f}s > {dt:.4f}s"
                     )
 
-            # After trajectory, update targets so hold logic keeps head at last commanded position
-            if last_head_yaw is not None and last_head_pitch is not None:
+            # After 10-DOF trajectory, keep hold targets at last commanded head pose.
+            if (
+                self.trajectory_dof == 10
+                and last_head_yaw is not None
+                and last_head_pitch is not None
+            ):
                 self.target_head_yaw = last_head_yaw
                 self.target_head_pitch = last_head_pitch
-                self.get_logger().info(f"Updated hold targets: head_yaw={last_head_yaw:.3f}, head_pitch={last_head_pitch:.3f}")
+                self.get_logger().info(
+                    f"Updated hold targets: head_yaw={last_head_yaw:.3f}, "
+                    f"head_pitch={last_head_pitch:.3f}"
+                )
+
             self.get_logger().info("Trajectory execution complete!")
 
         except Exception as e:
@@ -559,6 +612,13 @@ class BoosterExecutorNode(Node):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--trajectory_dof",
+        type=int,
+        default=7,
+        choices=[7, 10],
+        help="Incoming trajectory dimensionality: 7 (right arm only) or 10 (waist+arm+head)",
+    )
     parser.add_argument(
         "--network_interface",
         type=str,

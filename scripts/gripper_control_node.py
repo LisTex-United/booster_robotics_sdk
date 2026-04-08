@@ -15,6 +15,17 @@ from booster_robotics_sdk_python import (
     GetModeResponse,
 )
 
+# From include/booster/robot/rpc/error.hpp (RPC layer, not Python-specific)
+_RPC_MEANING = {
+    100: "timeout",
+    400: "bad request / invalid parameters",
+    409: "conflict with current robot state",
+    429: "request too frequent",
+    500: "internal server error",
+    501: "server refused — often wrong mode (e.g. kDamping) or policy on robot",
+    502: "state transition failed",
+}
+
 
 class GripperControlNode(Node):
     """ROS2 node that controls the gripper based on Bool messages."""
@@ -100,9 +111,14 @@ class GripperControlNode(Node):
             hand_index
         )
         
-        self.get_logger().info(f"ControlGripper ({hand_name} {action}) returned: {ret}")
+        hint = _RPC_MEANING.get(ret, "see SDK rpc/error.hpp")
+        self.get_logger().info(
+            f"ControlGripper ({hand_name} {action}) returned: {ret} ({hint})"
+        )
         if ret != 0:
-            self.get_logger().error(f"Failed to {action} {hand_name} gripper: error code {ret}")
+            self.get_logger().error(
+                f"Failed to {action} {hand_name} gripper: {ret} — {hint}"
+            )
         
         # Note: We keep end-effector control mode enabled to allow future gripper commands
         # If you want to disable it after each command, uncomment the line below:
