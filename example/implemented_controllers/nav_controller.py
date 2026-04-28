@@ -15,7 +15,7 @@ import time
 from rclpy.node import Node
 import rclpy
 from geometry_msgs.msg import Twist
-
+from std_msgs.msg import Bool
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--net", type=str, default="127.0.0.1", help="Network interface for SDK communication.")
@@ -34,6 +34,7 @@ class Controller(Node):
             self.client.Init()
             self.remoteControl = RemoteControlService()
             self.movement_sub = self.create_subscription(Twist, 'cmd_vel', self.move_handler, 1)
+            self.publish_back = self.create_publisher(Bool, 'back_button', 1)
             self.joystick_timer = self.create_timer(0.05, self.run_joystick)
             time.sleep(2)  # Wait for channels to initialize
             print("Initialization complete.")
@@ -77,6 +78,8 @@ class Controller(Node):
     def run_joystick(self):
         if self.remoteControl.send_stop():
             self.client.Move(0.0, 0.0, 0.0)
+        elif self.remoteControl.send_back():
+            self.publish_back.publish(Bool(data=True))
         
     def move_handler(self, msg: Twist):
         #* Ignore NAV2 commands when joystick is controlling
