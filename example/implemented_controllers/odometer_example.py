@@ -22,16 +22,16 @@ class OdomRepublisher(Node):
         self.odom_pub = self.create_publisher(Odometry, '/odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.odom_frame = "odom"
-        self.base_frame = "base_link"
+        self.base_frame = "base_footprint"
         self.publish_tf = False
-
+        
         self.pose_cov_x = 0.03
         self.pose_cov_y = 0.03
         self.pose_cov_yaw = 0.08
 
-        self.twist_cov_vx = 0.025
-        self.twist_cov_vy = 0.08
-        self.twist_cov_wz = 0.18
+        self.twist_cov_vx = 0.05
+        self.twist_cov_vy = 0.1
+        self.twist_cov_wz = 0.2
 
         self.unused_pose_cov = 1e6
         self.unused_twist_cov = 1e6
@@ -40,51 +40,109 @@ class OdomRepublisher(Node):
         self.prev_y = None
         self.prev_theta = None
         self.prev_time = None
-        self.tf_broadcaster = TransformBroadcaster(self)
+
+        # For downsampling and smoothing
+        self.sample_count = 0
+        self.sample_window = 10  # 500Hz/50Hz = 10
+        self.accum_x = 0.0
+        self.accum_y = 0.0
+        self.accum_theta_sin = 0.0
+        self.accum_theta_cos = 0.0
+        self.last_publish_time = None
+
+        
+        self.vx = 0.0
+        self.vy = 0.0
+        self.wz = 0.0
+        self.alpha = 0.2  
         
     def callback(self, msg):
-        now = self.get_clock().now()
-        stamp = now.to_msg()
+        # Accumulate for downsampling
 
         x = float(msg.x)
         y = float(msg.y)
         theta = float(msg.theta)
 
+        self.accum_x += x
+        self.accum_y += y
+        self.accum_theta_sin += math.sin(theta)
+        self.accum_theta_cos += math.cos(theta)
+        self.sample_count += 1
+
+        if self.sample_count < self.sample_window:
+            return  # Wait until enough samples
+
+        # Compute mean/accumulated values
+        mean_x = self.accum_x / self.sample_window
+        mean_y = self.accum_y / self.sample_window
+        mean_theta = math.atan2(self.accum_theta_sin / self.sample_window, self.accum_theta_cos / self.sample_window)
+
+        now = self.get_clock().now()
+        stamp = now.to_msg()
+        
         vx = 0.0
         vy = 0.0
         wz = 0.0
-
+        
         if self.prev_time is not None:
             dt = (now - self.prev_time).nanoseconds * 1e-9
             if dt > 1e-4:
-                dx = x - self.prev_x
-                dy = y - self.prev_y
-                dtheta = normalize_angle(theta - self.prev_theta)
+                dx = mean_x - self.prev_x
+                dy = mean_y - self.prev_y
+                dtheta = normalize_angle(mean_theta - self.prev_theta)
 
                 vx_world = dx / dt
                 vy_world = dy / dt
                 wz = dtheta / dt
 
-                cos_t = math.cos(theta)
-                sin_t = math.sin(theta)
-
+                cos_t = math.cos(self.prev_theta)
+                sin_t = math.sin(self.prev_theta)
                 vx =  cos_t * vx_world + sin_t * vy_world
                 vy = -sin_t * vx_world + cos_t * vy_world
+        
+        vx_new = max(min(vx, 0.6), -0.6)
+        vy_new = max(min(vy, 0.3), -0.3)
+        wz_new = max(min(wz, 1.1), -1.1)
 
-        self.prev_x = x
-        self.prev_y = y
-        self.prev_theta = theta
+        self.vx = self.alpha * vx_new + (1 - self.alpha) * self.vx
+        self.vy = self.alpha * vy_new + (1 - self.alpha) * self.vy
+        self.wz = self.alpha * wz_new + (1 - self.alpha) * self.wz
+
+        vx = self.vx
+        vy = self.vy
+        wz = self.wz
+        
+        if abs(vx) < 0.01:
+            vx = 0.0
+            self.vx = 0.0
+
+        if abs(vy) < 0.01:
+            vy = 0.0
+            self.vy = 0.0
+
+        if abs(wz) < 0.01:
+            wz = 0.0
+            self.wz = 0.0
+        
+        self.prev_x = mean_x
+        self.prev_y = mean_y
+        self.prev_theta = mean_theta
+        
+        if self.prev_time is None:
+            self.prev_time = now
+            return
+        
         self.prev_time = now
-
-        qx, qy, qz, qw = yaw_to_quaternion(theta)
+        
+        qx, qy, qz, qw = yaw_to_quaternion(mean_theta)
 
         odom = Odometry()
         odom.header.stamp = stamp
         odom.header.frame_id = self.odom_frame
         odom.child_frame_id = self.base_frame
 
-        odom.pose.pose.position.x = x
-        odom.pose.pose.position.y = y
+        odom.pose.pose.position.x = mean_x
+        odom.pose.pose.position.y = mean_y
         odom.pose.pose.position.z = 0.0
 
         odom.pose.pose.orientation.x = qx
@@ -125,8 +183,8 @@ class OdomRepublisher(Node):
             tf_msg.header.frame_id = self.odom_frame
             tf_msg.child_frame_id = self.base_frame
 
-            tf_msg.transform.translation.x = x
-            tf_msg.transform.translation.y = y
+            tf_msg.transform.translation.x = mean_x
+            tf_msg.transform.translation.y = mean_y
             tf_msg.transform.translation.z = 0.0
 
             tf_msg.transform.rotation.x = qx
@@ -135,6 +193,13 @@ class OdomRepublisher(Node):
             tf_msg.transform.rotation.w = qw
 
             self.tf_broadcaster.sendTransform(tf_msg)
+
+        # Reset accumulators
+        self.accum_x = 0.0
+        self.accum_y = 0.0
+        self.accum_theta_sin = 0.0
+        self.accum_theta_cos = 0.0
+        self.sample_count = 0
 
 def main():
     rclpy.init()   

@@ -46,7 +46,7 @@ class Controller(Node):
         """Switch the robot to walking mode safely. If already in walking mode, does nothing.
         If not, first switches to prepare mode, waits for it to initialize and then switches to walking mode."""
         current_mode = GetModeResponse()
-        pitch_head = 0.2
+        pitch_head = 0.5
         if self.client.GetMode(current_mode):
             raise RuntimeError("Could not get current robot mode.")
         
