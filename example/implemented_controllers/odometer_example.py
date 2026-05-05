@@ -24,14 +24,14 @@ class OdomRepublisher(Node):
         self.odom_frame = "odom"
         self.base_frame = "base_footprint"
         self.publish_tf = False
-        
-        self.pose_cov_x = 0.03
-        self.pose_cov_y = 0.03
-        self.pose_cov_yaw = 0.08
 
-        self.twist_cov_vx = 0.05
-        self.twist_cov_vy = 0.1
-        self.twist_cov_wz = 0.2
+        self.pose_cov_x = 1e3
+        self.pose_cov_y = 1e3
+        self.pose_cov_yaw = 1e2
+
+        self.twist_cov_vx = 5.0
+        self.twist_cov_vy = 10.0
+        self.twist_cov_wz = 0.8
 
         self.unused_pose_cov = 1e6
         self.unused_twist_cov = 1e6
@@ -41,20 +41,17 @@ class OdomRepublisher(Node):
         self.prev_theta = None
         self.prev_time = None
 
-        # For downsampling and smoothing
         self.sample_count = 0
-        self.sample_window = 10  # 500Hz/50Hz = 10
+        self.sample_window = 10
         self.accum_x = 0.0
         self.accum_y = 0.0
         self.accum_theta_sin = 0.0
         self.accum_theta_cos = 0.0
-        self.last_publish_time = None
 
-        
         self.vx = 0.0
         self.vy = 0.0
         self.wz = 0.0
-        self.alpha = 0.2  
+        self.alpha = 0.2
         
     def callback(self, msg):
         # Accumulate for downsampling
@@ -127,11 +124,18 @@ class OdomRepublisher(Node):
         self.prev_x = mean_x
         self.prev_y = mean_y
         self.prev_theta = mean_theta
-        
+
         if self.prev_time is None:
             self.prev_time = now
+
+            # Reset accumulators before returning
+            self.accum_x = 0.0
+            self.accum_y = 0.0
+            self.accum_theta_sin = 0.0
+            self.accum_theta_cos = 0.0
+            self.sample_count = 0
             return
-        
+
         self.prev_time = now
         
         qx, qy, qz, qw = yaw_to_quaternion(mean_theta)
@@ -165,7 +169,6 @@ class OdomRepublisher(Node):
         odom.twist.twist.angular.x = 0.0
         odom.twist.twist.angular.y = 0.0
         odom.twist.twist.angular.z = wz
-
         odom.twist.covariance = [
             self.twist_cov_vx, 0.0, 0.0, 0.0, 0.0, 0.0,
             0.0, self.twist_cov_vy, 0.0, 0.0, 0.0, 0.0,
