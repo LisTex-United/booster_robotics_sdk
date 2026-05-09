@@ -25,16 +25,22 @@ class OdomRepublisher(Node):
         self.base_frame = "base_footprint"
         self.publish_tf = False
 
-        self.pose_cov_x = 1e3
-        self.pose_cov_y = 1e3
+        # Pose is not fused from /odom in robot_localization, so keep it de-emphasized
+        self.pose_cov_x = 1e2
+        self.pose_cov_y = 1e2
         self.pose_cov_yaw = 1e2
 
-        self.twist_cov_vx = 5.0
-        self.twist_cov_vy = 10.0
-        self.twist_cov_wz = 0.8
+        # Estimated constant twist covariance from residual analysis
+        self.twist_cov_matrix = [
+            0.007162, -0.001448, 0.0, 0.0, 0.0,  0.002641,
+           -0.001448, 0.008955, 0.0, 0.0, 0.0, -0.008650,
+            0.0,      0.0,      1e6, 0.0, 0.0,  0.0,
+            0.0,      0.0,      0.0, 1e6, 0.0,  0.0,
+            0.0,      0.0,      0.0, 0.0, 1e6,  0.0,
+            0.002641, -0.008650, 0.0, 0.0, 0.0, 0.017941
+        ]
 
         self.unused_pose_cov = 1e6
-        self.unused_twist_cov = 1e6
 
         self.prev_x = None
         self.prev_y = None
@@ -169,14 +175,7 @@ class OdomRepublisher(Node):
         odom.twist.twist.angular.x = 0.0
         odom.twist.twist.angular.y = 0.0
         odom.twist.twist.angular.z = wz
-        odom.twist.covariance = [
-            self.twist_cov_vx, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, self.twist_cov_vy, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, self.unused_twist_cov, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, self.unused_twist_cov, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, self.unused_twist_cov, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, self.twist_cov_wz
-        ]
+        odom.twist.covariance = self.twist_cov_matrix
 
         self.odom_pub.publish(odom)
 
