@@ -48,7 +48,7 @@ class OdomRepublisher(Node):
         self.prev_time = None
 
         self.sample_count = 0
-        self.sample_window = 10
+        self.sample_window = 50
         self.accum_x = 0.0
         self.accum_y = 0.0
         self.accum_theta_sin = 0.0
