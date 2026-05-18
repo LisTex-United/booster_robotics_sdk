@@ -17,11 +17,13 @@ class JoystickConfig:
     max_vyaw: float = 0.5
     control_threshold: float = 0.1
     # logitech
+    back_button: evdev.ecodes = evdev.ecodes.BTN_TL2
     stop_button: evdev.ecodes = evdev.ecodes.BTN_TR2
     walk_button: evdev.ecodes = evdev.ecodes.BTN_B
     x_axis: evdev.ecodes = evdev.ecodes.ABS_Y
     y_axis: evdev.ecodes = evdev.ecodes.ABS_X
     yaw_axis: evdev.ecodes = evdev.ecodes.ABS_Z
+    
 
     # xiaoji
     # custom_mode_button: evdev.ecodes = evdev.ecodes.BTN_B
@@ -40,6 +42,7 @@ class RemoteControlService:
         self._lock = threading.Lock()
         self._running = True
         self._joystick_controlling = False
+        self.back_button_pressed = False
         self.already_sent_stop = True
 
         try:
@@ -162,6 +165,10 @@ class RemoteControlService:
                 print("Emergency Stop: velocities set to zero. Joystick Control Enabled.")
             else:
                 print("Joystick Control Disabled.") 
+        
+        elif code == self.config.back_button and value == 1:
+            with self._lock:
+                self.back_button_pressed = True
 
     def is_joystick_controlling(self) -> bool:
         """Check if joystick is currently controlling the robot."""
@@ -178,6 +185,14 @@ class RemoteControlService:
                 
         return False
     
+    def send_back(self) -> bool:
+        """Check if the back button has been pressed."""
+        with self._lock:
+            if self.back_button_pressed:
+                self.back_button_pressed = False
+                return True
+        return False
+                    
     def _scale(self, value: float, max: float, threshold: float, axis_code: int) -> float:
         """Scale joystick input to velocity command using actual axis ranges."""
         absinfo = self.axis_ranges[axis_code]
