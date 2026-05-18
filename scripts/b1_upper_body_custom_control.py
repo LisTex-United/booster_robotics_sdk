@@ -87,7 +87,7 @@ def run_core(network_interface: str, start: bool) -> int:
 # ROS2 trajectory mode: subscribe to PoseArray and execute sequentially
 # ---------------------------------------------------------------------------
 
-def run_trajectory(network_interface: str, topic: str, hand: str, duration_ms: int, downsample: int = 1, max_poses: int | None = None) -> int:
+def run_trajectory(network_interface: str, topic: str, hand: str, duration_ms: int, downsample: int = 1, max_poses: int | None = None, init_duration_ms: int | None = None) -> int:
     import rclpy
     from geometry_msgs.msg import PoseArray, PoseStamped
     from rclpy.duration import Duration
@@ -113,6 +113,7 @@ def run_trajectory(network_interface: str, topic: str, hand: str, duration_ms: i
             self._duration_ms = duration_ms
             self._downsample = max(1, downsample)
             self._max_poses = max_poses
+            self._init_duration_ms = init_duration_ms
             self._hand_index = (
                 B1HandIndex.kRightHand if hand == "right" else B1HandIndex.kLeftHand
             )
@@ -242,8 +243,16 @@ def run_trajectory(network_interface: str, topic: str, hand: str, duration_ms: i
 
                 # Scale duration proportionally to downsample step.
                 move_duration_ms = self._duration_ms * self._downsample
-                init_duration_ms = move_duration_ms * 100
+                init_duration_ms = (
+                    self._init_duration_ms
+                    if self._init_duration_ms is not None
+                    else move_duration_ms
+                )
                 n = len(all_poses)
+                self.get_logger().info(
+                    f"Pacing: init={init_duration_ms}ms, per-pose={move_duration_ms}ms, "
+                    f"poses={n}, est_total={(init_duration_ms + (n-1)*move_duration_ms)/1000:.1f}s"
+                )
                 for idx, pose in enumerate(all_poses, start=1):
                     is_first = idx == 1
                     dur = init_duration_ms if is_first else move_duration_ms
@@ -404,7 +413,15 @@ def main():
         "--duration-ms",
         type=int,
         default=20,
-        help="Move duration per pose in ms (trajectory mode only, default 20)",
+        help="Move duration per pose in ms (trajectory mode only, default 20). "
+             "Also used as the inter-command sleep, so larger = slower playback.",
+    )
+    parser.add_argument(
+        "--init-duration-ms",
+        type=int,
+        default=None,
+        help="Move duration for the FIRST pose in ms (default: same as --duration-ms). "
+             "Use a larger value when the start pose is far from the current EE pose.",
     )
     parser.add_argument(
         "--max-poses",
@@ -430,7 +447,7 @@ def main():
 
     # Trajectory mode
     if args.topic is not None:
-        sys.exit(run_trajectory(args.network_interface, args.topic, args.hand, args.duration_ms, args.downsample, args.max_poses))
+        sys.exit(run_trajectory(args.network_interface, args.topic, args.hand, args.duration_ms, args.downsample, args.max_poses, args.init_duration_ms))
 
     # Core mode: just enable/disable UpperBodyCustomControl, no movement
     start = True
