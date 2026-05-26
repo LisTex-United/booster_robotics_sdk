@@ -8,6 +8,7 @@
 #include <booster/idl/b1/MotorCmd.h>
 #include <booster/robot/channel/channel_publisher.hpp>
 #include <booster/robot/b1/b1_api_const.hpp>
+#include <booster/robot/b1/b1_loco_client.hpp>
 
 static const std::string kTopicArmSDK = "rt/joint_ctrl";
 
@@ -22,6 +23,9 @@ int main(int argc, char const *argv[]) {
   booster::robot::ChannelPublisherPtr< booster_interface::msg::LowCmd>
       arm_sdk_publisher;
   booster_interface::msg::LowCmd msg;
+
+  booster::robot::b1::B1LocoClient client;
+  client.Init();
 
   arm_sdk_publisher.reset(
       new booster::robot::ChannelPublisher<booster_interface::msg::LowCmd>(
@@ -66,6 +70,11 @@ int main(int argc, char const *argv[]) {
   std::cout << "Initailizing arms ...";
   float init_time = 5.0f;
   int init_time_steps = static_cast<int>(init_time / control_dt);
+
+
+  booster::robot::b1::GetModeResponse gm;
+  int32_t ret = client.ChangeMode(booster::robot::RobotMode::kCustom);
+
 
   for (size_t i = 0; i < booster::robot::b1::kJointCnt; i++) {
       booster_interface::msg::MotorCmd motor_cmd;

@@ -1098,7 +1098,6 @@ public:
 private:
     int dance_idx_;
 };
-
 }
 }
 } // namespace booster::robot::b1
